@@ -6,7 +6,6 @@
 #include "event_loop.h"
 #include "types.h"
 
-
 class Socket {
 public:
     Socket(EventLoop& event_loop) noexcept;
@@ -15,17 +14,16 @@ public:
 
     void listen();
     void bind(const endpoint& ep);
-    accept_awaitable asyncAccept() { return accept_awaitable{event_loop_, socket_data_}; }
-    read_awaitable asyncRead(int fd) { return read_awaitable{event_loop_, fd}; }
+    socket_data accept();
+    accept_awaitable asyncAccept() { return accept_awaitable{event_loop_, socket_data_.fd }; }
+    const char* read();
+
+    template <Buffer Container>
+    read_awaitable<Container> asyncRead(int fd, Container& buffer) { return read_awaitable<Container>{event_loop_, buffer, fd}; }
 
 private:
-    void setSocketData(const endpoint& ep);
-
-protected:
     void openFileDescriptor();
-    // returns fd of accepted socket
-    socket_data accept();
-    const char* read();
+    void setSocketData(const endpoint& ep);
 
 protected:
     EventLoop& event_loop_;

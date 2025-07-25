@@ -3,9 +3,9 @@
 #include <cstddef>
 #include <sys/event.h>
 
-#include <array>
 #include <coroutine>
 #include <unordered_map>
+#include <vector>
 
 class EventLoop {
 public:
@@ -43,7 +43,7 @@ private:
         handle_type type;
     };
 
-    std::array<struct kevent, 64> events;
+    std::vector<struct kevent> events;
     std::unordered_map<int, handler> handlers;
     int kq;
 };

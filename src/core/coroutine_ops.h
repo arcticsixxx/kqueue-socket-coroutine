@@ -4,31 +4,30 @@
 #include <unistd.h>
 
 #include <coroutine>
-#include <vector>
 
 #include "event_loop.h"
 #include "exceptions.h"
 #include "types.h"
 
 struct accept_awaitable {
-    accept_awaitable(EventLoop& event_loop, socket_data data)
-        : data_(data)
-        , event_loop_(event_loop) {}
+    accept_awaitable(EventLoop& event_loop, int fd)
+        : event_loop_(event_loop)
+        , fd_(fd) {}
 
     bool await_ready() const noexcept { return false; }
 
     void await_suspend(std::coroutine_handle<> handle) noexcept {
         struct kevent kev;
-        EV_SET(&kev, data_.fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, nullptr);
+        EV_SET(&kev, fd_, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, nullptr);
         kevent(event_loop_.getKq(), &kev, 1, nullptr, 0, nullptr);
 
-        event_loop_.addHandle(data_.fd, EventLoop::handle_type::ACCEPT, handle);
+        event_loop_.addHandle(fd_, EventLoop::handle_type::ACCEPT, handle);
     }
 
     socket_data await_resume() const {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
-        int client_fd = ::accept(data_.fd,
+        int client_fd = ::accept(fd_,
             reinterpret_cast<struct sockaddr*>(&client_addr),
             &client_len);
 
@@ -41,16 +40,20 @@ struct accept_awaitable {
 
 private:
     EventLoop& event_loop_;
-    socket_data data_;
+    int fd_;
 };
 
+template <typename Container>
+requires Buffer<Container>
 struct read_awaitable
 {
-    read_awaitable(EventLoop& event_loop, int fd)
+    read_awaitable(EventLoop& event_loop, Container& buf, int fd)
         : event_loop_(event_loop)
-        ,fd_(fd) {}
+        , buf_(buf)
+        , fd_(fd) {}
 
     bool await_ready() const noexcept { return false; }
+
     void await_suspend(std::coroutine_handle<> handle) noexcept {
         struct kevent kev;
         EV_SET(&kev, fd_, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, nullptr);
@@ -59,30 +62,25 @@ struct read_awaitable
         event_loop_.addHandle(fd_, EventLoop::handle_type::READ, handle);
     }
 
-    std::vector<char> await_resume() const {
-        constexpr size_t chunk_size = 256;
-        std::vector<char> buffer;
-        buffer.resize(chunk_size);
-
-        size_t nbytes = ::read(fd_, buffer.data(), chunk_size);
+    size_t await_resume() const {
+        size_t nbytes = ::read(fd_, std::ranges::data(buf_), buf_.size());
 
         // eof
         if (nbytes == 0) {
-            buffer.clear();
             event_loop_.removeHandle(fd_);
-            return {};
+            return 0;
         }
 
         if (nbytes < 0) {
             throw read_exception{errno};
         }
 
-        buffer.resize(nbytes);
-        return buffer;
+        return static_cast<size_t>(nbytes);
     }
 
 private:
     EventLoop& event_loop_;
+    Container& buf_;
     int fd_;
 };
 

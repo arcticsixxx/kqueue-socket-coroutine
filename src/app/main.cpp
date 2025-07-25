@@ -1,4 +1,7 @@
+#include <deque>
 #include <iostream>
+#include <list>
+#include <span>
 
 #include "socket.h"
 
@@ -21,13 +24,23 @@ private:
         }
     }
 
+    template<typename T>
+    void printData(T& t) {
+        for (const auto& el : t) {
+            std::cout << el;
+        }
+
+        std::cout << std::endl;
+    }
+
     coro_task handle_client(socket_data client) {
         for (;;) {
-            auto data = co_await s.asyncRead(client.fd);
-            if (!data.data()) {
+            std::array<char, 4096> data{};
+            auto read = co_await s.asyncRead(client.fd, data);
+            if (!read) {
                 break;
             }
-            std::cout << client.fd << ": " << data.data() << std::endl;
+            std::cout << client.fd << " " << read << ": " << data.data() << std::endl;
         }
 
         std::cout << client.fd << " disconnected" << std::endl;
