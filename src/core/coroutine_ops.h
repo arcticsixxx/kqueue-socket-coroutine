@@ -10,7 +10,7 @@
 #include "types.h"
 
 struct accept_awaitable {
-    accept_awaitable(EventLoop& event_loop, int fd)
+    accept_awaitable(event_loop& event_loop, int fd)
         : event_loop_(event_loop)
         , fd_(fd) {}
 
@@ -19,9 +19,9 @@ struct accept_awaitable {
     void await_suspend(std::coroutine_handle<> handle) noexcept {
         struct kevent kev;
         EV_SET(&kev, fd_, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, nullptr);
-        kevent(event_loop_.getKq(), &kev, 1, nullptr, 0, nullptr);
+        kevent(event_loop_.get_kq(), &kev, 1, nullptr, 0, nullptr);
 
-        event_loop_.addHandle(fd_, EventLoop::handle_type::ACCEPT, handle);
+        event_loop_.add_handle(fd_, event_loop::handle_type::ACCEPT, handle);
     }
 
     socket_data await_resume() const {
@@ -39,7 +39,7 @@ struct accept_awaitable {
     }
 
 private:
-    EventLoop& event_loop_;
+    event_loop& event_loop_;
     int fd_;
 };
 
@@ -47,7 +47,7 @@ template <typename Container>
 requires Buffer<Container>
 struct read_awaitable
 {
-    read_awaitable(EventLoop& event_loop, Container& buf, int fd)
+    read_awaitable(event_loop& event_loop, Container& buf, int fd)
         : event_loop_(event_loop)
         , buf_(buf)
         , fd_(fd) {}
@@ -57,9 +57,9 @@ struct read_awaitable
     void await_suspend(std::coroutine_handle<> handle) noexcept {
         struct kevent kev;
         EV_SET(&kev, fd_, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, nullptr);
-        kevent(event_loop_.getKq(), &kev, 1, nullptr, 0, nullptr);
+        kevent(event_loop_.get_kq(), &kev, 1, nullptr, 0, nullptr);
 
-        event_loop_.addHandle(fd_, EventLoop::handle_type::READ, handle);
+        event_loop_.add_handle(fd_, event_loop::handle_type::READ, handle);
     }
 
     size_t await_resume() const {
@@ -67,7 +67,7 @@ struct read_awaitable
 
         // eof
         if (nbytes == 0) {
-            event_loop_.removeHandle(fd_);
+            event_loop_.remove_handle(fd_);
             return 0;
         }
 
@@ -79,7 +79,7 @@ struct read_awaitable
     }
 
 private:
-    EventLoop& event_loop_;
+    event_loop& event_loop_;
     Container& buf_;
     int fd_;
 };

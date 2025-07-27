@@ -1,57 +1,50 @@
-#include <deque>
 #include <iostream>
-#include <list>
-#include <span>
 
 #include "socket.h"
 
 struct server {
-    server(EventLoop& event_loop, const endpoint& ep)
+    server(event_loop& event_loop, const endpoint& ep)
         : event_loop_{event_loop}
-        , s{event_loop_, ep} {}
+        , ep{ep} {
+    }
 
     void run() {
         loop();
     }
 
 private:
-    coro_task loop() {
+    auto loop() -> coro_task {
+        Socket s{event_loop_, ep};
         s.listen();
 
         for (;;) {
-            auto client = co_await s.asyncAccept();
-            handle_client(client);
-        }
-    }
-
-    template<typename T>
-    void printData(T& t) {
-        for (const auto& el : t) {
-            std::cout << el;
+            auto client = co_await s.async_accept();
+            handle_client({event_loop_, std::move(client)});
         }
 
-        std::cout << std::endl;
+        co_return;
     }
 
-    coro_task handle_client(socket_data client) {
+    auto handle_client(Socket client) -> coro_task {
         for (;;) {
-            std::array<char, 4096> data{};
-            auto read = co_await s.asyncRead(client.fd, data);
-            if (!read) {
+            std::array<char, 256> data{};
+            auto read = co_await client.async_read(client.get_fd(), data);
+            if (read == 0) {
                 break;
             }
-            std::cout << client.fd << " " << read << ": " << data.data() << std::endl;
+            std::cout << client.get_fd() << " " << read << ": " << data.data() << std::endl;
         }
 
-        std::cout << client.fd << " disconnected" << std::endl;
+        std::cout << client.get_fd() << " disconnected" << std::endl;
+        co_return;
     }
 
-    EventLoop& event_loop_;
-    Socket s;
+    event_loop& event_loop_;
+    const endpoint ep;
 };
 
 int main() {
-    EventLoop loop;
+    event_loop loop;
     const endpoint ep = {
         .host = "127.0.0.1",
         .port = 3336u

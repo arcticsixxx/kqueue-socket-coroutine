@@ -7,7 +7,7 @@
 struct socket_data {
     struct sockaddr_in addr;
     socklen_t addr_len;
-    int fd;
+    int fd = -1;
 };
 
 struct endpoint {
