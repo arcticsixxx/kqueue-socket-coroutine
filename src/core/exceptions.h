@@ -86,7 +86,7 @@ private:
 };
 
 
-class event_loop_exception : public std::exception {
+class kqueue_backend_exception : public std::exception {
 public:
     const char* what() const noexcept override {
         return "kq err";

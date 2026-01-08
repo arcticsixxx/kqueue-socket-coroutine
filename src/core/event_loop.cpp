@@ -1,44 +1,38 @@
 #include "event_loop.h"
 
 #include "exceptions.h"
+#include "kqueue_backend.h"
 
-#include <unistd.h>
+bool event_loop::add_handle(event event) {
+    int fd = event.fd;
+    handlers.push_back(std::move(event));
 
-namespace {
-static constexpr const size_t initial_events_size = 256;
+    return add_kevent(fd);
 }
 
-event_loop::event_loop() {
-    kq = kqueue();
-    if (kq < 0) {
-        throw event_loop_exception{};
-    }
+void event_loop::remove_handle(int fd) {
+    std::erase_if(handlers, [fd](const auto& e) {
+        return e.fd == fd; 
+    });
 
-    events.resize(initial_events_size);
-}
-
-event_loop::~event_loop() noexcept {
-    if (kq >= 0) {
-        close(kq);
-    }
+    kq_backend.delete_event(fd);
 }
 
 void event_loop::loop() {
     while (true) {
-        int n = kevent(kq, nullptr, 0, events.data(), events.size(), nullptr);
-        for (int i = 0; i < n; ++i) {
-            int fd = events[i].ident;
-
-            if (auto it = std::ranges::find(handlers, fd, &event::fd);
-                it != handlers.end()) {
-
-                auto h = *it;
-                if (h.type == handle_type::ACCEPT) {
-                    remove_handle(fd);
-                }
-
-                h.handle.resume();
-            }
+        const auto events = kq_backend.get_ready_events();
+        for (const auto& ev: events) {
+            process_event(ev.ident);
         }
+    }
+}
+
+void event_loop::process_event(int fd) {
+    if (auto it = std::ranges::find(handlers, fd, &event::fd); it != handlers.end()) {
+        if (it->type == event::handle_type::ACCEPT) {
+            remove_handle(fd);
+        }
+
+        it->handle.resume();
     }
 }

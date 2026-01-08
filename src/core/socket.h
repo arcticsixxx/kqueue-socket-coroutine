@@ -2,8 +2,9 @@
 
 #include <sys/socket.h>
 
-#include "coroutine_ops.h"
+#include "accept_awaitable.h"
 #include "event_loop.h"
+#include "read_awaitable.h"
 #include "types.h"
 
 class Socket {
@@ -43,12 +44,12 @@ public:
 
     void listen(size_t max_connections = 32);
     void bind(const endpoint& ep);
-    accept_awaitable async_accept() {
+    auto async_accept() -> accept_awaitable {
         return accept_awaitable{event_loop_, socket_data_.fd };
     }
 
     template <Buffer Container>
-    read_awaitable<Container> async_read(int fd, Container& buffer) {
+    auto async_read(int fd, Container& buffer) -> read_awaitable<Container> {
         return read_awaitable<Container>{event_loop_, buffer, fd};
     }
 
@@ -57,6 +58,7 @@ public:
 
 private:
     void open_file_descriptor();
+    void set_nonblock();
     void set_socket_data(const endpoint& ep);
 
     event_loop& event_loop_;

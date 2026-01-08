@@ -1,21 +1,26 @@
 #include "socket.h"
 
 #include <arpa/inet.h>
-
+#include <fcntl.h>
 #include <unistd.h>
 
 #include "exceptions.h"
 
 Socket::Socket(event_loop &event_loop) noexcept
-    : event_loop_(event_loop) {}
+    : event_loop_(event_loop) {
+    set_nonblock();
+}
 
 Socket::Socket(event_loop &event_loop, socket_data &&socket_data)
     : event_loop_(event_loop)
-    , socket_data_(socket_data) {}
+    , socket_data_(socket_data) {
+    set_nonblock();
+}
 
 Socket::Socket(event_loop& event_loop, const endpoint& ep)
     : event_loop_(event_loop) {
     open_file_descriptor();
+    set_nonblock();
     bind(ep);
 }
 
@@ -32,6 +37,11 @@ void Socket::open_file_descriptor() {
     }
 
     socket_data_.fd = res;
+}
+
+void Socket::set_nonblock() {
+    int flags = fcntl(socket_data_.fd, F_GETFL, 0);
+    fcntl(socket_data_.fd, F_SETFL, flags | O_NONBLOCK);
 }
 
 void Socket::set_socket_data(const endpoint &ep) {

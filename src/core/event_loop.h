@@ -6,43 +6,56 @@
 #include <coroutine>
 #include <vector>
 
-class event_loop {
-public:
-    enum class handle_type {
+#include "kqueue_backend.h"
+
+struct event {
+    enum handle_type {
         ACCEPT = 0,
         READ,
         WRITE
     };
 
-    explicit event_loop();
+    std::coroutine_handle<> handle;
+    handle_type type;
+    int fd;
+};
 
+class event_loop {
+public:
+    explicit event_loop() = default;
     event_loop(const event_loop&) = delete;
-    event_loop& operator=(const event_loop&) = delete;
+    auto operator=(const event_loop&) -> event_loop& = delete;
+    event_loop(event_loop&&) = delete;
+    auto operator=(event_loop&&) -> event_loop& = delete;
+    ~event_loop() = default;
 
-    ~event_loop() noexcept;
-
-    void run() { loop(); }
-    void stop() {};
-
-    inline int get_kq() const noexcept { return kq; }
-    inline void add_handle(int fd, handle_type type, std::coroutine_handle<> handle) {
-        handlers.emplace_back(event{handle, type, fd});
+    void run() {
+        // is_running = true;
+        loop();
     }
 
-    inline void remove_handle(int fd) {
-        std::erase_if(handlers, [fd](const auto& e) { return e.fd == fd; });
+    void stop() {
+        // is_running = false;
+    };
+
+    int get_kq() const noexcept {
+        return kq_backend.get_kq();
     }
+
+    bool add_kevent(int fd) noexcept {
+        return kq_backend.add_kevent(fd);
+    }
+
+    bool add_handle(event event);
+    void remove_handle(int fd);
 
 private:
     void loop();
+    void process_event(int fd);
 
-    struct event {
-        std::coroutine_handle<> handle;
-        handle_type type;
-        int fd;
-    };
-
+private:
     std::vector<event> handlers;
-    std::vector<struct kevent> events;
-    int kq;
+    kqueue_backend kq_backend;
+
+    // std::atomic_bool is_running = false;
 };

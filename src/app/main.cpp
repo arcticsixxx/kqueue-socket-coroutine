@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "coro_task.h"
 #include "socket.h"
 
 struct server {
@@ -13,19 +14,19 @@ struct server {
     }
 
 private:
-    auto loop() -> coro_task {
+    auto loop() -> non_own_resumable {
         Socket s{event_loop_, ep};
         s.listen();
 
         for (;;) {
-            auto client = co_await s.async_accept();
-            handle_client({event_loop_, std::move(client)});
+            auto client_data = co_await s.async_accept();
+            handle_client({event_loop_, std::move(client_data)});
         }
 
         co_return;
     }
 
-    auto handle_client(Socket client) -> coro_task {
+    auto handle_client(Socket client) -> non_own_resumable {
         for (;;) {
             std::array<char, 256> data{};
             auto read = co_await client.async_read(client.get_fd(), data);
@@ -47,18 +48,18 @@ int main() {
     event_loop loop;
     const endpoint ep = {
         .host = "127.0.0.1",
-        .port = 3336u
+        .port = 3337u
     };
 
     std::unique_ptr<server> s;
 
     try {
         s = std::make_unique<server>(loop, ep);
+        s->run();
     } catch(const std::exception& ex) {
         std::cerr << ex.what() << "\n";
     }
 
-    s->run();
     loop.run();
 
     return 0;
